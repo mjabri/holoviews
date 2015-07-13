@@ -139,8 +139,8 @@
 <span class="kn">from</span> <span class="nn">..core</span> <span class="kn">import</span> <span class="n">ElementOperation</span><span class="p">,</span> <span class="n">NdOverlay</span><span class="p">,</span> <span class="n">Overlay</span>
 <span class="kn">from</span> <span class="nn">..core.util</span> <span class="kn">import</span> <span class="n">find_minmax</span><span class="p">,</span> <span class="n">sanitize_identifier</span>
 <span class="kn">from</span> <span class="nn">..element.chart</span> <span class="kn">import</span> <span class="n">Histogram</span><span class="p">,</span> <span class="n">Curve</span>
-<span class="kn">from</span> <span class="nn">..element.raster</span> <span class="kn">import</span> <span class="n">Image</span><span class="p">,</span> <span class="n">RGB</span>
-<span class="kn">from</span> <span class="nn">..element.path</span> <span class="kn">import</span> <span class="n">Contours</span>
+<span class="kn">from</span> <span class="nn">..element.raster</span> <span class="kn">import</span> <span class="n">Raster</span><span class="p">,</span> <span class="n">Image</span><span class="p">,</span> <span class="n">RGB</span><span class="p">,</span> <span class="n">QuadMesh</span>
+<span class="kn">from</span> <span class="nn">..element.path</span> <span class="kn">import</span> <span class="n">Contours</span><span class="p">,</span> <span class="n">Polygons</span>
 
 
 <span class="k">def</span> <span class="nf">identity</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">k</span><span class="p">):</span> <span class="k">return</span> <span class="n">x</span>
@@ -520,24 +520,45 @@
     <span class="n">group</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s">&#39;Level&#39;</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
 <span class="s">        The group assigned to the output contours.&quot;&quot;&quot;</span><span class="p">)</span>
 
+    <span class="n">filled</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">Boolean</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
+<span class="s">        Whether to generate filled contours&quot;&quot;&quot;</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>
 
         <span class="n">figure_handle</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
-        <span class="n">extent</span> <span class="o">=</span> <span class="n">matrix</span><span class="o">.</span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">matrix</span><span class="o">.</span><span class="n">range</span><span class="p">(</span><span class="mi">1</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">contour_set</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">contour</span><span class="p">(</span><span class="n">matrix</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
-                                  <span class="n">levels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">levels</span><span class="p">)</span>
+        <span class="n">extent</span> <span class="o">=</span> <span class="n">element</span><span class="o">.</span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">element</span><span class="o">.</span><span class="n">range</span><span class="p">(</span><span class="mi">1</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">filled</span><span class="p">:</span>
+            <span class="n">contour_fn</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">contourf</span>
+            <span class="n">contour_type</span> <span class="o">=</span> <span class="n">Polygons</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">contour_fn</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">contour</span>
+            <span class="n">contour_type</span> <span class="o">=</span> <span class="n">Contours</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">element</span><span class="p">)</span> <span class="ow">is</span> <span class="n">Raster</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">data</span><span class="p">)]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">Raster</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">element</span><span class="o">.</span><span class="n">data</span><span class="p">]</span>
+        
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">QuadMesh</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">dimension_values</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">True</span><span class="p">),</span>
+                    <span class="n">element</span><span class="o">.</span><span class="n">dimension_values</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">True</span><span class="p">),</span>
+                    <span class="n">element</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">contour_set</span> <span class="o">=</span> <span class="n">contour_fn</span><span class="p">(</span><span class="o">*</span><span class="n">data</span><span class="p">,</span> <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
+                                 <span class="n">levels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">levels</span><span class="p">)</span>
 
         <span class="n">contours</span> <span class="o">=</span> <span class="n">NdOverlay</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="n">kdims</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;Levels&#39;</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">level</span><span class="p">,</span> <span class="n">cset</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">levels</span><span class="p">,</span> <span class="n">contour_set</span><span class="o">.</span><span class="n">collections</span><span class="p">):</span>
             <span class="n">paths</span> <span class="o">=</span> <span class="n">cset</span><span class="o">.</span><span class="n">get_paths</span><span class="p">()</span>
             <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="o">.</span><span class="n">vertices</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">]</span>
-            <span class="n">contours</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">Contours</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">group</span><span class="p">,</span>
-                                       <span class="n">label</span><span class="o">=</span><span class="n">matrix</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
+            <span class="n">contours</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="n">contour_type</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">group</span><span class="p">,</span>
+                                           <span class="n">label</span><span class="o">=</span><span class="n">element</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
 
         <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">figure_handle</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">matrix</span> <span class="o">*</span> <span class="n">contours</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">filled</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">contours</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">element</span> <span class="o">*</span> <span class="n">contours</span>
 
 
 </div>

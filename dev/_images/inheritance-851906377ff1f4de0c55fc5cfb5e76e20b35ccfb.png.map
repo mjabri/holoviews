@@ -1,0 +1,12 @@
+<map id="inheritancec1153ff9c8" name="inheritancec1153ff9c8">
+<area shape="rect" id="node2" href="holoviews.plotting.html#holoviews.plotting.plot.GenericElementPlot" title="Plotting baseclass to render contents of an Element. Implements" alt="" coords="394,26,525,38"/>
+<area shape="rect" id="node6" href="holoviews.plotting.html#holoviews.plotting.plot.GenericOverlayPlot" title="Plotting baseclass to render (Nd)Overlay objects. It implements" alt="" coords="553,4,682,16"/>
+<area shape="rect" id="node3" href="#holoviews.plotting.mpl.plot.MPLPlot" title="An MPLPlot object draws a matplotlib figure object when called or" alt="" coords="405,48,515,60"/>
+<area shape="rect" id="node7" href="#holoviews.plotting.mpl.plot.CompositePlot" title="CompositePlot provides a baseclass for plots coordinate multiple" alt="" coords="553,70,682,82"/>
+<area shape="rect" id="node5" href="#holoviews.plotting.mpl.element.OverlayPlot" title="OverlayPlot supports compositors processing of Overlays across maps." alt="" coords="863,38,995,49"/>
+<area shape="rect" id="node12" href="#holoviews.plotting.mpl.raster.RasterGridPlot" title="RasterGridPlot evenly spaces out plots of individual projections on" alt="" coords="1016,54,1150,66"/>
+<area shape="rect" id="node9" href="#holoviews.plotting.mpl.plot.GridPlot" title="Plot a group of elements in a grid layout based on a GridSpace element" alt="" coords="874,71,983,82"/>
+<area shape="rect" id="node10" href="holoviews.plotting.html#holoviews.plotting.plot.DimensionedPlot" title="DimensionedPlot implements a number of useful methods" alt="" coords="247,48,369,60"/>
+<area shape="rect" id="node14" href="holoviews.plotting.html#holoviews.plotting.plot.Plot" title="Base class of all Plot classes in HoloViews, designed to be" alt="" coords="140,48,225,60"/>
+<area shape="rect" id="node15" title="params(name=String)" alt="" coords="2,48,118,60"/>
+</map>
