@@ -297,6 +297,62 @@
 
 
 </div>
+<div class="viewcode-block" id="Tabular"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.Tabular">[docs]</a><span class="k">class</span> <span class="nc">Tabular</span><span class="p">(</span><span class="n">NdMapping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Baseclass to give an NdMapping objects an API to generate a</span>
+<span class="sd">    table representation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__abstract</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndims</span> <span class="o">+</span> <span class="nb">max</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vdims</span><span class="p">)])</span>
+
+
+<div class="viewcode-block" id="Tabular.pprint_cell"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.Tabular.pprint_cell">[docs]</a>    <span class="k">def</span> <span class="nf">pprint_cell</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the formatted cell value for the given row and column indices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ndims</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndims</span>
+        <span class="k">if</span> <span class="n">col</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Maximum column index is </span><span class="si">%d</span><span class="s">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">row</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Maximum row index is </span><span class="si">%d</span><span class="s">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">row</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="o">&gt;=</span> <span class="n">ndims</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">vdims</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vdims</span><span class="p">[</span><span class="n">col</span> <span class="o">-</span> <span class="n">ndims</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="s">&#39;&#39;</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kdims</span><span class="p">[</span><span class="n">col</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_dimension</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">col</span> <span class="o">&gt;=</span> <span class="n">ndims</span><span class="p">:</span>
+                <span class="n">row_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">()[</span><span class="n">row</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">vdims</span><span class="p">:</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">row_values</span><span class="p">[</span><span class="n">col</span> <span class="o">-</span> <span class="n">ndims</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">row_values</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">row_data</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="n">row</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">row_data</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">dim</span><span class="o">.</span><span class="n">pprint_value</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="Tabular.cell_type"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.Tabular.cell_type">[docs]</a>    <span class="k">def</span> <span class="nf">cell_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the cell type given a row and column index. The common</span>
+<span class="sd">        basic cell types are &#39;data&#39; and &#39;heading&#39;.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;heading&#39;</span> <span class="k">if</span> <span class="n">row</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s">&#39;data&#39;</span>
+
+
+</div></div>
 <span class="k">class</span> <span class="nc">Element2D</span><span class="p">(</span><span class="n">Element</span><span class="p">):</span>
 
     <span class="n">extents</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">Tuple</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span>
@@ -305,7 +361,7 @@
 <span class="s">              defining the (left, bottom, right and top) edges.&quot;&quot;&quot;</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="NdElement"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.NdElement">[docs]</a><span class="k">class</span> <span class="nc">NdElement</span><span class="p">(</span><span class="n">Element</span><span class="p">,</span> <span class="n">NdMapping</span><span class="p">):</span>
+<div class="viewcode-block" id="NdElement"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.NdElement">[docs]</a><span class="k">class</span> <span class="nc">NdElement</span><span class="p">(</span><span class="n">Element</span><span class="p">,</span> <span class="n">Tabular</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An NdElement is an Element that stores the contained data as</span>
 <span class="sd">    an NdMapping. In addition to the usual multi-dimensional keys</span>
@@ -362,6 +418,9 @@
                 <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">NdElement</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">reindex</span><span class="p">(</span><span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">vdims</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_value_names</span>
+        <span class="k">elif</span> <span class="n">kdims</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">kdims</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cached_index_names</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_value_names</span><span class="p">)</span>
+                     <span class="k">if</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">vdims</span><span class="p">]</span>
         <span class="n">key_dims</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">get_dimension</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">kdims</span><span class="p">]</span>
         <span class="n">val_dims</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">get_dimension</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vdims</span><span class="p">]</span>
         <span class="n">kidxs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_index_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_dimension_index</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
@@ -376,7 +435,10 @@
             <span class="n">_</span><span class="p">,</span> <span class="n">val</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="nb">sorted</span><span class="p">(((</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">iskey</span> <span class="k">else</span> <span class="n">v</span><span class="p">[</span><span class="n">idx</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">ndims</span><span class="p">])</span>
                                   <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">iskey</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">vidxs</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">getter</span><span class="p">))</span>
             <span class="n">items</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">))</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">kdims</span><span class="o">=</span><span class="n">key_dims</span><span class="p">,</span> <span class="n">vdims</span><span class="o">=</span><span class="n">val_dims</span><span class="p">)</span>
+        <span class="n">reindexed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">kdims</span><span class="o">=</span><span class="n">key_dims</span><span class="p">,</span> <span class="n">vdims</span><span class="o">=</span><span class="n">val_dims</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">force</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">reindexed</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;Cannot reindex as not all resulting keys are unique.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reindexed</span>
 
 </div>
     <span class="k">def</span> <span class="nf">_add_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
@@ -560,7 +622,7 @@
 <span class="sd">    the x- and y-dimension limits and labels.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">data_type</span> <span class="o">=</span> <span class="p">(</span><span class="n">ViewableElement</span><span class="p">,</span> <span class="n">UniformNdMapping</span><span class="p">,</span> <span class="n">Layout</span><span class="p">)</span>
+    <span class="n">data_type</span> <span class="o">=</span> <span class="p">(</span><span class="n">ViewableElement</span><span class="p">,</span> <span class="n">NdMapping</span><span class="p">,</span> <span class="n">Layout</span><span class="p">)</span>
 
 <div class="viewcode-block" id="HoloMap.overlay"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.HoloMap.overlay">[docs]</a>    <span class="k">def</span> <span class="nf">overlay</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -981,7 +1043,7 @@
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">)),</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">))</span>
 
 </div>
-<div class="viewcode-block" id="Collator"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.Collator">[docs]</a><span class="k">class</span> <span class="nc">Collator</span><span class="p">(</span><span class="n">NdMapping</span><span class="p">):</span>
+<div class="viewcode-block" id="Collator"><a class="viewcode-back" href="../../../Reference_Manual/holoviews.core.html#holoviews.core.element.Collator">[docs]</a><span class="k">class</span> <span class="nc">Collator</span><span class="p">(</span><span class="n">NdElement</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Collator is an NdMapping type which can merge any number</span>
 <span class="sd">    of HoloViews components with whatever level of nesting</span>
@@ -989,13 +1051,6 @@
 <span class="sd">    If the items in the Collator do not contain HoloMaps</span>
 <span class="sd">    they will be created. Collator also supports filtering</span>
 <span class="sd">    of Tree structures and dropping of constant dimensions.</span>
-
-<span class="sd">    Collator can also be subclassed to dynamically load data</span>
-<span class="sd">    from different locations. This only requires subclassing</span>
-<span class="sd">    the _process_data method, which should return the data</span>
-<span class="sd">    to be merged, e.g. the Collator may contain a number of</span>
-<span class="sd">    filenames as values, which the _process_data can</span>
-<span class="sd">    dynamically load (and then merge) during the call.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">drop</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">List</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="p">[],</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
@@ -1010,11 +1065,8 @@
 <span class="s">        List of paths to drop when collating data, specified</span>
 <span class="s">        as strings or tuples.&quot;&quot;&quot;</span><span class="p">)</span>
 
-    <span class="n">transform_fn</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">Callable</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
-<span class="s">        If supplied the function will be applied on each Collator</span>
-<span class="s">        value during collation. This may be used to apply an operation</span>
-<span class="s">        to the data or load references from disk before they are collated</span>
-<span class="s">        into a displayable HoloViews object.&quot;&quot;&quot;</span><span class="p">)</span>
+    <span class="n">group</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s">&#39;Collator&#39;</span><span class="p">)</span>
+
 
     <span class="n">progress_bar</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
 <span class="s">         The progress bar instance used to report progress. Set to</span>
@@ -1023,7 +1075,18 @@
     <span class="n">merge_type</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">ClassSelector</span><span class="p">(</span><span class="n">class_</span><span class="o">=</span><span class="n">NdMapping</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">HoloMap</span><span class="p">,</span>
                                      <span class="n">is_instance</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span><span class="n">instantiate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
+    <span class="n">value_transform</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">Callable</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
+<span class="s">        If supplied the function will be applied on each Collator</span>
+<span class="s">        value during collation. This may be used to apply an operation</span>
+<span class="s">        to the data or load references from disk before they are collated</span>
+<span class="s">        into a displayable HoloViews object.&quot;&quot;&quot;</span><span class="p">)</span>
+
+    <span class="n">vdims</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">List</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="p">[],</span> <span class="n">doc</span><span class="o">=</span><span class="s">&quot;&quot;&quot;</span>
+<span class="s">         Collator operates on HoloViews objects, if vdims are specified</span>
+<span class="s">         a value_transform function must also be supplied.&quot;&quot;&quot;</span><span class="p">)</span>
+
     <span class="n">_deep_indexable</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">_auxiliary_component</span> <span class="o">=</span> <span class="bp">False</span>
 
     <span class="n">_nest_order</span> <span class="o">=</span> <span class="p">{</span><span class="n">HoloMap</span><span class="p">:</span> <span class="n">ViewableElement</span><span class="p">,</span>
                    <span class="n">GridSpace</span><span class="p">:</span> <span class="p">(</span><span class="n">HoloMap</span><span class="p">,</span> <span class="n">ViewableElement</span><span class="p">),</span>
@@ -1045,8 +1108,12 @@
         <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">AttrTree</span><span class="p">):</span>
                 <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filters</span><span class="p">)</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_fn</span><span class="p">:</span>
-                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_fn</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vdims</span><span class="p">):</span>
+                <span class="n">vargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">(</span><span class="s">&#39;value&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span> <span class="n">data</span><span class="p">))</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value_transform</span><span class="p">(</span><span class="n">vargs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">Dimensioned</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Collator values must be Dimensioned objects &quot;</span>
+                                 <span class="s">&quot;before collation.&quot;</span><span class="p">)</span>
 
             <span class="n">dim_keys</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cached_index_names</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
             <span class="n">varying_keys</span> <span class="o">=</span> <span class="p">[(</span><span class="n">d</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">dim_keys</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">drop_constant</span> <span class="ow">or</span>
@@ -1066,6 +1133,10 @@
         <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">components</span><span class="p">:</span>
             <span class="n">accumulator</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">accumulator</span>
+
+
+    <span class="k">def</span> <span class="nf">_add_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="n">Tabular</span><span class="o">.</span><span class="n">_add_item</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">sort</span><span class="p">)</span>
 
 
     <span class="nd">@property</span>
@@ -1112,6 +1183,7 @@
             <span class="n">new_item</span><span class="o">.</span><span class="n">fixed</span> <span class="o">=</span> <span class="bp">True</span>
 
         <span class="k">return</span> <span class="n">new_item</span>
+
 
 </div>
 <span class="n">__all__</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">_k</span> <span class="k">for</span> <span class="n">_k</span><span class="p">,</span> <span class="n">_v</span> <span class="ow">in</span> <span class="nb">locals</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
