@@ -6,10 +6,12 @@ examples.
 import numpy as np
 
 import param
+from param import _is_number
 
-from ..core import ElementOperation, NdOverlay, Overlay
+from ..core import (ElementOperation, NdOverlay, Overlay, GridMatrix,
+                    HoloMap, Columns, Element)
 from ..core.util import find_minmax, sanitize_identifier
-from ..element.chart import Histogram, Curve
+from ..element.chart import Histogram, Curve, Scatter
 from ..element.raster import Raster, Image, RGB, QuadMesh
 from ..element.path import Contours, Polygons
 
@@ -294,8 +296,8 @@ class gradient(ElementOperation):
     """
     Compute the gradient plot of the supplied Image.
 
-    If the Image value dimension is cyclic, negative differences will
-    be wrapped into the cyclic range.
+    If the Image value dimension is cyclic, the smallest step is taken
+    considered the cyclic range
     """
 
     output_type = Image
@@ -313,19 +315,28 @@ class gradient(ElementOperation):
 
         data = matrix.data
         r, c = data.shape
+
+        if  matrix_dim.cyclic and (None in matrix_dim.range):
+            raise Exception("Cyclic range must be specified to compute "
+                            "the gradient of cyclic quantities")
+        cyclic_range = None if not matrix_dim.cyclic else np.diff(matrix_dim.range)
+        if cyclic_range is not None:
+            # shift values such that wrapping works ok
+            data = data - matrix_dim.range[0]
+
         dx = np.diff(data, 1, axis=1)[0:r-1, 0:c-1]
         dy = np.diff(data, 1, axis=0)[0:r-1, 0:c-1]
 
-        cyclic_range = 1.0 if not matrix_dim.cyclic else matrix_dim.range
         if cyclic_range is not None: # Wrap into the specified range
             # Convert negative differences to an equivalent positive value
             dx = dx % cyclic_range
             dy = dy % cyclic_range
             #
-            # Make it increase as gradient reaches the halfway point,
-            # and decrease from there
-            dx = 0.5 * cyclic_range - np.abs(dx - 0.5 * cyclic_range)
-            dy = 0.5 * cyclic_range - np.abs(dy - 0.5 * cyclic_range)
+            # Prefer small jumps
+            dx_negatives = dx - cyclic_range
+            dy_negatives = dy - cyclic_range
+            dx = np.where(np.abs(dx_negatives)<dx, dx_negatives, dx)
+            dy = np.where(np.abs(dy_negatives)<dy, dy_negatives, dy)
 
         return Image(np.sqrt(dx * dx + dy * dy), matrix.bounds, group=self.p.group)
 
@@ -424,9 +435,10 @@ class contours(ElementOperation):
 
         contours = NdOverlay(None, kdims=['Levels'])
         for level, cset in zip(self.p.levels, contour_set.collections):
-            paths = cset.get_paths()
-            lines = [path.vertices for path in paths]
-            contours[level] = contour_type(lines, level=level, group=self.p.group,
+            paths = []
+            for path in cset.get_paths():
+                paths.extend(np.split(path.vertices, np.where(path.codes==1)[0][1:]))
+            contours[level] = contour_type(paths, level=level, group=self.p.group,
                                            label=element.label, kdims=element.kdims,
                                            vdims=element.vdims)
 
@@ -455,11 +467,17 @@ class histogram(ElementOperation):
     dimension = param.String(default=None, doc="""
       Along which dimension of the ViewableElement to compute the histogram.""")
 
+    individually = param.Boolean(default=True, doc="""
+      Specifies whether the histogram will be rescaled for each Raster in a UniformNdMapping.""")
+
+    mean_weighted = param.Boolean(default=False, doc="""
+      Whether the weighted frequencies are averaged.""")
+
     normed = param.Boolean(default=True, doc="""
       Whether the histogram frequencies are normalized.""")
 
-    individually = param.Boolean(default=True, doc="""
-      Specifies whether the histogram will be rescaled for each Raster in a UniformNdMapping.""")
+    nonzero = param.Boolean(default=False, doc="""
+      Whether to use only nonzero values when computing the histogram""")
 
     num_bins = param.Integer(default=20, doc="""
       Number of bins in the histogram .""")
@@ -476,24 +494,44 @@ class histogram(ElementOperation):
         else:
             selected_dim = [d.name for d in view.vdims + view.kdims][0]
         data = np.array(view.dimension_values(selected_dim))
-        weights = np.array(view.dimension_values(self.p.weight_dimension)) if self.p.weight_dimension else None
+        if self.p.nonzero:
+            mask = data > 0
+            data = data[mask]
+        if self.p.weight_dimension:
+            weights = np.array(view.dimension_values(self.p.weight_dimension))
+            if self.p.nonzero:
+                weights = weights[mask]
+        else:
+            weights = None
         hist_range = find_minmax((np.nanmin(data), np.nanmax(data)), (0, -float('inf')))\
             if self.p.bin_range is None else self.p.bin_range
 
         # Avoids range issues including zero bin range and empty bins
         if hist_range == (0, 0):
             hist_range = (0, 1)
+        data = data[np.invert(np.isnan(data))]
+        normed = False if self.p.mean_weighted and self.p.weight_dimension else self.p.normed
         try:
-            data = data[np.invert(np.isnan(data))]
-            hist, edges = np.histogram(data[np.isfinite(data)], normed=self.p.normed,
+            hist, edges = np.histogram(data[np.isfinite(data)], normed=normed,
                                        range=hist_range, weights=weights, bins=self.p.num_bins)
+            if not normed and self.p.weight_dimension and self.p.mean_weighted:
+                hist_mean, _ = np.histogram(data[np.isfinite(data)], normed=normed,
+                                            range=hist_range, bins=self.p.num_bins)
+                hist /= hist_mean
         except:
             edges = np.linspace(hist_range[0], hist_range[1], self.p.num_bins + 1)
             hist = np.zeros(self.p.num_bins)
+
         hist[np.isnan(hist)] = 0
 
+        params = {}
+        if self.p.weight_dimension:
+            params['vdims'] = [view.get_dimension(self.p.weight_dimension)]
+        if view.group != view.__class__.__name__:
+            params['group'] = view.group
+
         hist_view = Histogram(hist, edges, kdims=[view.get_dimension(selected_dim)],
-                              label=view.label)
+                              label=view.label, **params)
 
         return (view << hist_view) if self.p.adjoin else hist_view
 
@@ -504,36 +542,96 @@ class histogram(ElementOperation):
 #==================#
 
 
-class collapse_curve(ElementOperation):
+class collapse(ElementOperation):
     """
-    Given an overlay of Curves, compute a new curve which is collapsed
-    for each x-value given a specified function.
+    Given an overlay of Element types, collapse into single Element
+    object using supplied function. Collapsing aggregates over the
+    key dimensions of each object applying the supplied fn to each group.
 
     This is an example of an ElementOperation that does not involve
     any Raster types.
     """
 
-    output_type = Curve
-
     fn = param.Callable(default=np.mean, doc="""
         The function that is used to collapse the curve y-values for
         each x-value.""")
 
-    group = param.String(default='Collapses', doc="""
-       The group assigned to the collapsed curve output.""")
-
     def _process(self, overlay, key=None):
+        if isinstance(overlay, NdOverlay):
+            collapse_map = HoloMap(overlay)
+        else:
+            collapse_map = HoloMap({i: el for i, el in enumerate(overlay)})
+        return collapse_map.collapse(function=self.p.fn)
 
-        for curve in overlay:
-            if not isinstance(curve, Curve):
-                raise ValueError("The collapse_curve operation requires Curves as input.")
-            if not all(curve.data[:,0] == overlay.get(0).data[:,0]):
-                raise ValueError("All input curves must have same x-axis values.")
 
-        data = []
-        for i, xval in enumerate(overlay.get(0).data[:,0]):
-            yval = self.p.fn([c.data[i,1]  for c in overlay])
-            data.append((xval, yval))
+class gridmatrix(param.ParameterizedFunction):
+    """
+    The gridmatrix operation takes an Element or HoloMap
+    of Elements as input and creates a GridMatrix object,
+    which plots each dimension in the Element against
+    each other dimension. This provides a very useful
+    overview of high-dimensional data and is inspired
+    by pandas and seaborn scatter_matrix implementations.
+    """
 
-        return Curve(np.array(data), group=self.p.group,
-                     label=self.get_overlay_label(overlay))
+    chart_type = param.Parameter(default=Scatter, doc="""
+        The Element type used to display bivariate distributions
+        of the data.""")
+
+    diagonal_type = param.Parameter(default=Histogram, doc="""
+       The Element type along the diagonal, may be a Histogram or any
+       other plot type which can visualize a univariate distribution.""")
+
+    overlay_dims = param.List(default=[], doc="""
+       If a HoloMap is supplied this will allow overlaying one or
+       more of it's key dimensions.""")
+
+    def __call__(self, data, **params):
+        p = param.ParamOverrides(self, params)
+
+        if isinstance(data, HoloMap):
+            ranges = {d.name: data.range(d) for d in data.dimensions()}
+            data = data.clone({k: GridMatrix(self._process(p, v, ranges))
+                               for k, v in data.items()}).collate()
+            if p.overlay_dims:
+                data = data.map(lambda x: x.overlay(p.overlay_dims), (HoloMap,))
+            return data
+        elif isinstance(data, Element):
+            data = self._process(p, data)
+            return GridMatrix(data)
+
+
+    def _process(self, p, element, ranges={}):
+        # Creates a unified Columns.data attribute
+        # to draw the data from
+        if isinstance(element.data, np.ndarray):
+            if 'dataframe' in Columns.datatype:
+                el_data = element.table('dataframe')
+            else:
+                el_data = element.table('dictionary')
+        el_data = element.data
+
+        # Get dimensions to plot against each other
+        dims = [d for d in element.dimensions()
+                if _is_number(element.range(d)[0])]
+        permuted_dims = [(d1, d2) for d1 in dims
+                         for d2 in dims[::-1]]
+
+        data = {}
+        for d1, d2 in permuted_dims:
+            key = (d1.name, d2.name)
+            if d1 == d2:
+                if p.diagonal_type is Histogram:
+                    bin_range = ranges.get(d1.name, element.range(d1))
+                    el = element.hist(dimension=d1.name,
+                                      bin_range=bin_range,
+                                      adjoin=False)
+                else:
+                    values = element.dimension_values(d1)
+                    el = p.diagonal_type(values, kdims=[d1])
+            else:
+                el = p.chart_type(el_data, kdims=[d1],
+                                  vdims=[d2])
+            data[(d1.name, d2.name)] = el
+        return data
+

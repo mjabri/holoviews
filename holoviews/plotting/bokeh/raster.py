@@ -12,6 +12,7 @@ class RasterPlot(ElementPlot):
 
     style_opts = ['cmap']
     _plot_method = 'image'
+    _update_handles = ['color_mapper', 'source', 'glyph']
 
     def __init__(self, *args, **kwargs):
         super(RasterPlot, self).__init__(*args, **kwargs)
@@ -41,8 +42,22 @@ class RasterPlot(ElementPlot):
         low, high = ranges.get(val_dim)
         if 'cmap' in properties:
             palette = mplcmap_to_palette(properties.pop('cmap', None))
-        properties['color_mapper'] = LinearColorMapper(palette, low=low, high=high)
+        cmap = LinearColorMapper(palette, low=low, high=high)
+        properties['color_mapper'] = cmap
+        if 'color_mapper' not in self.handles:
+            self.handles['color_mapper'] = cmap
         return properties
+
+
+    def _update_glyph(self, glyph, properties, mapping):
+        allowed_properties = glyph.properties()
+        cmap = properties.pop('color_mapper', None)
+        if cmap:
+            glyph.color_mapper.low = cmap.low
+            glyph.color_mapper.high = cmap.high
+        merged = dict(properties, **mapping)
+        glyph.set(**{k: v for k, v in merged.items()
+                     if k in allowed_properties})
 
 
 class RGBPlot(RasterPlot):
@@ -53,15 +68,21 @@ class RGBPlot(RasterPlot):
     def get_data(self, element, ranges=None):
         data, mapping = super(RGBPlot, self).get_data(element, ranges)
         img = data['image'][0]
+
         if img.ndim == 3:
             if img.shape[2] == 3: # alpha channel not included
-                img = np.dstack([img, np.ones(img.shape[:2])])
-            img = (img*255).astype(np.uint8)
+                alpha = np.ones(img.shape[:2])
+                if img.dtype.name == 'uint8':
+                    alpha = (alpha*255).astype('uint8')
+                img = np.dstack([img, alpha])
+            if img.dtype.name != 'uint8':
+                img = (img*255).astype(np.uint8)
             N, M, _ = img.shape
             #convert image NxM dtype=uint32
             img = img.view(dtype=np.uint32).reshape((N, M))
             data['image'] = [img]
         return data, mapping
+
 
     def _glyph_properties(self, plot, element, source, ranges):
         return ElementPlot._glyph_properties(self, plot, element,
@@ -73,9 +94,9 @@ class HeatmapPlot(ElementPlot):
     _plot_method = 'rect'
     style_opts = ['cmap', 'color'] + line_properties + fill_properties
 
-    def _init_axes(self, plots, element, ranges):
+    def _axes_props(self, plots, subplots, element, ranges):
         labels = self._axis_labels(element, plots)
-        xvals, yvals = element.dense_keys()
+        xvals, yvals = [element.dimension_values(i, True) for i in range(2)]
         plot_ranges = {'x_range': [str(x) for x in xvals],
                        'y_range': [str(y) for y in yvals]}
         return ('auto', 'auto'), labels, plot_ranges
@@ -86,8 +107,9 @@ class HeatmapPlot(ElementPlot):
         cmap = style.get('palette', style.get('cmap', None))
         cmap = get_cmap(cmap)
         x, y, z = element.dimensions(label=True)
-        zvals = np.rot90(element.data, 3).flatten()
+        zvals = element.dimension_values(z)
         colors = map_colors(zvals, ranges[z], cmap)
-        xvals, yvals = zip(*product(*element.dense_keys()))
+        xvals, yvals = [[str(v) for v in element.dimension_values(i)]
+                        for i in range(2)]
         return ({x: xvals, y: yvals, z: zvals, 'color': colors},
                 {'x': x, 'y': y, 'fill_color': 'color', 'height': 1, 'width': 1})

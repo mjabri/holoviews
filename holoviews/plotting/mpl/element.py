@@ -1,15 +1,18 @@
 import math
 
 from matplotlib import ticker
+from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
 import param
 
 from ...core import util
-from ...core import OrderedDict, Collator, NdOverlay, HoloMap, CompositeOverlay, Element3D
+from ...core import (OrderedDict, Collator, NdOverlay, HoloMap,
+                     CompositeOverlay, Element3D, Columns, NdElement)
 from ...element import Table, ItemTable, Raster
 from ..plot import GenericElementPlot, GenericOverlayPlot
 from .plot import MPLPlot
+from .util import wrap_formatter
 
 
 class ElementPlot(GenericElementPlot, MPLPlot):
@@ -47,7 +50,8 @@ class ElementPlot(GenericElementPlot, MPLPlot):
                                        objects=['horizontal', 'vertical'], doc="""
         The orientation of the plot. Note that this parameter may not
         always be respected by all plots but should be respected by
-        adjoined plots when appropriate.""")
+        adjoined plots when appropriate valid options are 'horizontal'
+        and 'vertical'.""")
 
     show_legend = param.Boolean(default=False, doc="""
         Whether to show legend for the plot.""")
@@ -59,13 +63,15 @@ class ElementPlot(GenericElementPlot, MPLPlot):
                                  objects=['top', 'bottom', 'bare', 'top-bare',
                                           'bottom-bare', None], doc="""
         Whether and where to display the xaxis, bare options allow suppressing
-        all axis labels including ticks and xlabel.""")
+        all axis labels including ticks and xlabel. Valid options are 'top',
+        'bottom', 'bare', 'top-bare' and 'bottom-bare'.""")
 
     yaxis = param.ObjectSelector(default='left',
                                       objects=['left', 'right', 'bare', 'left-bare',
                                                'right-bare', None], doc="""
         Whether and where to display the yaxis, bare options allow suppressing
-        all axis labels including ticks and ylabel.""")
+        all axis labels including ticks and ylabel. Valid options are 'left',
+        'right', 'bare' 'left-bare' and 'right-bare'.""")
 
     zaxis = param.Boolean(default=True, doc="""
         Whether to display the z-axis.""")
@@ -100,7 +106,7 @@ class ElementPlot(GenericElementPlot, MPLPlot):
     # Element Plots should declare the valid style options for matplotlib call
     style_opts = []
 
-    _suppressed = [Table, Collator, ItemTable]
+    _suppressed = [Table, NdElement, Collator, Columns, ItemTable]
 
     def __init__(self, element, **params):
         super(ElementPlot, self).__init__(element, **params)
@@ -142,19 +148,19 @@ class ElementPlot(GenericElementPlot, MPLPlot):
                     pass
                 elif xdim.formatter:
                     xformat = xdim.formatter
-                elif xdim.type_formatters.get(xdim.type):
+                elif xdim.type in xdim.type_formatters:
                     xformat = xdim.type_formatters[xdim.type]
                 if xformat:
-                    axis.xaxis.set_major_formatter(xformat)
+                    axis.xaxis.set_major_formatter(wrap_formatter(xformat))
 
                 if ydim is None:
                     pass
                 elif ydim.formatter:
                     yformat = ydim.formatter
-                elif ydim.type_formatters.get(ydim.type):
+                elif ydim.type in ydim.type_formatters:
                     yformat = ydim.type_formatters[ydim.type]
                 if yformat:
-                    axis.yaxis.set_major_formatter(yformat)
+                    axis.yaxis.set_major_formatter(wrap_formatter(yformat))
 
             if self.zorder == 0 and not subplots:
                 legend = axis.get_legend()
@@ -504,6 +510,28 @@ class ColorbarPlot(ElementPlot):
 
 
 
+    def _norm_kwargs(self, element, ranges, opts):
+        """
+        Returns valid color normalization kwargs
+        to be passed to matplotlib plot function.
+        """
+        norm = None
+        clim = opts.pop('clims', None)
+        if clim is None:
+            val_dim = [d.name for d in element.vdims][0]
+            clim = ranges.get(val_dim)
+            if self.symmetric:
+                clim = -np.abs(clim).max(), np.abs(clim).max()
+        if self.logz:
+            if self.symmetric:
+                norm = colors.SymLogNorm(vmin=clim[0], vmax=clim[1],
+                                         linthresh=clim[1]/np.e)
+            else:
+                norm = colors.LogNorm(vmin=clim[0], vmax=clim[1])
+        return clim, norm, opts
+
+
+
 class LegendPlot(ElementPlot):
 
     show_legend = param.Boolean(default=True, doc="""
@@ -514,11 +542,17 @@ class LegendPlot(ElementPlot):
 
     legend_position = param.ObjectSelector(objects=['inner', 'right',
                                                     'bottom', 'top',
-                                                    'left', 'best'],
+                                                    'left', 'best',
+                                                    'top_right',
+                                                    'top_left',
+                                                    'bottom_left',
+                                                    'bottom_right'],
                                            default='inner', doc="""
         Allows selecting between a number of predefined legend position
         options. The predefined options may be customized in the
-        legend_specs class attribute.""")
+        legend_specs class attribute. By default, 'inner', 'right',
+        'bottom', 'top', 'left', 'best', 'top_right', 'top_left',
+        'bottom_right' and 'bottom_left' are supported.""")
 
     legend_specs = {'inner': {},
                     'best': {},
@@ -528,7 +562,11 @@ class LegendPlot(ElementPlot):
                                    ncol=3, loc=3, mode="expand", borderaxespad=0.),
                     'bottom': dict(ncol=3, mode="expand", loc=2,
                                    bbox_to_anchor=(0., -0.25, 1., .102),
-                                   borderaxespad=0.1)}
+                                   borderaxespad=0.1),
+                    'top_right': dict(loc=1),
+                    'top_left': dict(loc=2),
+                    'bottom_left': dict(loc=3),
+                    'bottom_right': dict(loc=4)}
 
 
 

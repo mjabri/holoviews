@@ -10,7 +10,7 @@ import param
 from ...core import OrderedDict, NdMapping, CompositeOverlay, HoloMap
 from ...core.util import match_spec
 from ...element import Points, Raster, Polygons
-from ..util import compute_sizes
+from ..util import compute_sizes, get_sideplot_ranges
 from .element import ElementPlot, ColorbarPlot, LegendPlot
 
 
@@ -53,8 +53,8 @@ class ChartPlot(ElementPlot):
         """
         Mutate the lines object to generate a rotated cyclic curves.
         """
-        x_values = list(curveview.data[:, 0])
-        y_values = list(curveview.data[:, 1])
+        x_values = list(curveview.dimension_values(0))
+        y_values = list(curveview.dimension_values(1))
         if self.center_cyclic:
             rotate_n = self.peak_argmax+len(x_values)/2
             y_values = self._rotate(y_values, n=rotate_n)
@@ -122,12 +122,14 @@ class CurvePlot(ChartPlot):
             if self.center_cyclic:
                 self.peak_argmax = np.argmax(element.data[:, 1])
             data = self._cyclic_curves(element)
-            xticks = self._cyclic_reduce_ticks(self.xvalues)
+            if self.xticks is not None:
+                xticks = self._cyclic_reduce_ticks(self.xvalues)
 
         # Create line segments and apply style
         style = self.style[self.cyclic_index]
         legend = element.label if self.show_legend else ''
-        line_segment = axis.plot(data[:, 0], data[:, 1], label=legend,
+        line_segment = axis.plot(element.dimension_values(0),
+                                 element.dimension_values(1), label=legend,
                                  zorder=self.zorder, **style)[0]
 
         self.handles['artist'] = line_segment
@@ -135,12 +137,11 @@ class CurvePlot(ChartPlot):
 
 
     def update_handles(self, axis, element, key, ranges=None):
-        data = element.data
         artist = self.handles['artist']
         if self.cyclic_range is not None:
             data = self._cyclic_curves(element)
-        artist.set_xdata(data[:, 0])
-        artist.set_ydata(data[:, 1])
+        artist.set_xdata(element.dimension_values(0))
+        artist.set_ydata(element.dimension_values(1))
 
 
 
@@ -151,9 +152,6 @@ class ErrorPlot(ChartPlot):
     both horizontal and vertical error bars via the 'horizontal'
     plot option.
     """
-
-    horizontal = param.Boolean(default=False, doc="""
-       Whether to draw horizontal or vertical error bars.""")
 
     style_opts = ['ecolor', 'elinewidth', 'capsize', 'capthick',
                   'barsabove', 'lolims', 'uplims', 'xlolims',
@@ -171,12 +169,13 @@ class ErrorPlot(ChartPlot):
         ranges = self.compute_ranges(self.hmap, key, ranges)
         ranges = match_spec(element, ranges)
 
+        dims = element.dimensions()
         error_kwargs = dict(self.style[self.cyclic_index], fmt='none',
                             zorder=self.zorder)
-        kwarg = 'xerr' if self.horizontal else 'yerr'
-        error_kwargs[kwarg] = element.data[:, 2:4].T
-        _, (bottoms, tops), verts = axis.errorbar(element.data[:, 0],
-                                                  element.data[:, 1],
+        yerr = element.array(dimensions=dims[2:4])
+        error_kwargs['yerr'] = yerr.T if len(dims) > 3 else yerr
+        _, (bottoms, tops), verts = axis.errorbar(element.dimension_values(0),
+                                                  element.dimension_values(1),
                                                   **error_kwargs)
         self.handles['bottoms'] = bottoms
         self.handles['tops'] = tops
@@ -186,31 +185,37 @@ class ErrorPlot(ChartPlot):
 
 
     def update_handles(self, axis, element, key, ranges=None):
-        data = element.data
         bottoms = self.handles['bottoms']
         tops = self.handles['tops']
         verts = self.handles['verts']
         paths = verts.get_paths()
+
+        xvals = element.dimension_values(0)
+        mean = element.dimension_values(1)
+        neg_error = element.dimension_values(2)
+        pos_idx = 3 if len(element.dimensions()) > 3 else 2
+        pos_error = element.dimension_values(pos_idx)
+
         if self.horizontal:
-            bdata = data[:, 0] - data[:, 2]
-            tdata = data[:, 0] + data[:, 3]
+            bdata = xvals - neg_error
+            tdata = xvals + pos_error
             tops.set_xdata(bdata)
-            tops.set_ydata(data[:, 1])
+            tops.set_ydata(mean)
             bottoms.set_xdata(tdata)
-            bottoms.set_ydata(data[:, 1])
+            bottoms.set_ydata(mean)
             for i, path in enumerate(paths):
-                path.vertices = np.array([[bdata[i], data[i, 1]],
-                                          [tdata[i], data[i, 1]]])
+                path.vertices = np.array([[bdata[i], mean[i]],
+                                          [tdata[i], mean[i]]])
         else:
-            bdata = data[:, 1] - data[:, 2]
-            tdata = data[:, 1] + data[:, 3]
-            bottoms.set_xdata(data[:, 0])
+            bdata = mean - neg_error
+            tdata = mean + pos_error
+            bottoms.set_xdata(xvals)
             bottoms.set_ydata(bdata)
-            tops.set_xdata(data[:, 0])
+            tops.set_xdata(xvals)
             tops.set_ydata(tdata)
             for i, path in enumerate(paths):
-                path.vertices = np.array([[data[i, 0], bdata[i]],
-                                          [data[i, 0], tdata[i]]])
+                path.vertices = np.array([[xvals[i], bdata[i]],
+                                          [xvals[i], tdata[i]]])
 
 
 class SpreadPlot(ChartPlot):
@@ -241,10 +246,15 @@ class SpreadPlot(ChartPlot):
     def update_handles(self, axis, element, key, ranges=None):
         if 'paths' in self.handles:
             self.handles['paths'].remove()
-        paths = axis.fill_between(element.data[:, 0],
-                                  element.data[:, 1]-element.data[:, 2],
-                                  element.data[:, 1]+element.data[:, 3],
-                                  zorder=self.zorder,
+
+        xvals = element.dimension_values(0)
+        mean = element.dimension_values(1)
+        neg_error = element.dimension_values(2)
+        pos_idx = 3 if len(element.dimensions()) > 3 else 2
+        pos_error = element.dimension_values(pos_idx)
+
+        paths = axis.fill_between(xvals, mean-neg_error,
+                                  mean+pos_error, zorder=self.zorder,
                                   label=element.label if self.show_legend else None,
                                   **self.style[self.cyclic_index])
         self.handles['paths'] = paths
@@ -453,24 +463,13 @@ class SideHistogramPlot(HistogramPlot):
         main = self.adjoined.main
         y0, y1 = element.range(1)
         offset = self.offset * y1
-
-        hist_dim = element.get_dimension(0).name
-        range_item = main
-        if isinstance(main, HoloMap):
-            if issubclass(main.type, CompositeOverlay):
-                range_item = [hm for hm in main.split_overlays()[1]
-                              if hist_dim in hm.dimensions('all', label=True)][0]
+        range_item, main_range, dim = get_sideplot_ranges(self, element, main, ranges)
+        if isinstance(range_item, (Raster, Points, Polygons)):
+            style = self.lookup_options(range_item, 'style')[self.cyclic_index]
+            cmap = cm.get_cmap(style.get('cmap'))
+            main_range = style.get('clims', main_range)
         else:
-            range_item = HoloMap({0: main}, kdims=['Frame'])
-        ranges = match_spec(range_item.last, ranges)
-        if hist_dim in ranges:
-            main_range = ranges[hist_dim]
-        else:
-            framewise = self.lookup_options(range_item.last, 'norm').options.get('framewise')
-            if framewise and range_item.get(key, False):
-                main_range = range_item.get(key, False).range(hist_dim)
-            else:
-                main_range = range_item.range(hist_dim)
+            cmap = None
 
         if offset and ('offset_line' not in self.handles):
             self.handles['offset_line'] = self.offset_linefn(offset,
@@ -479,23 +478,8 @@ class SideHistogramPlot(HistogramPlot):
         elif offset:
             self._update_separator(offset)
 
-
-        # If .main is an NdOverlay or a HoloMap of Overlays get the correct style
-        if isinstance(range_item, HoloMap):
-            range_item = range_item.last
-        if isinstance(range_item, CompositeOverlay):
-            range_item = [ov for ov in range_item
-                          if hist_dim in ov.dimensions('value', label=True)][0]
-
-        if isinstance(range_item, (Raster, Points, Polygons)):
-            style = self.lookup_options(range_item, 'style')[self.cyclic_index]
-            cmap = cm.get_cmap(style.get('cmap'))
-            main_range = style.get('clims', main_range)
-        else:
-            cmap = None
-
         if cmap is not None:
-            self._colorize_bars(cmap, bars, main_range)
+            self._colorize_bars(cmap, bars, element, main_range, dim)
         return bars
 
 
@@ -505,7 +489,7 @@ class SideHistogramPlot(HistogramPlot):
         return (0, x0, y1, x1) if self.orientation == 'vertical' else (x0, 0, x1, y1)
 
 
-    def _colorize_bars(self, cmap, bars, main_range):
+    def _colorize_bars(self, cmap, bars, element, main_range, dim):
         """
         Use the given cmap to color the bars, applying the correct
         color ranges as necessary.
@@ -513,14 +497,12 @@ class SideHistogramPlot(HistogramPlot):
         vertical = (self.orientation == 'vertical')
         cmap_range = main_range[1] - main_range[0]
         lower_bound = main_range[0]
-        for bar in bars:
+        colors = np.array(element.dimension_values(dim))
+        colors = (colors - lower_bound) / (cmap_range)
+        for c, bar in zip(colors, bars):
             bar_bin = bar.get_y() if vertical else bar.get_x()
             width = bar.get_height() if vertical else bar.get_width()
-            try:
-                color_val = (bar_bin+width/2.-lower_bound)/cmap_range
-            except:
-                color_val = 0
-            bar.set_facecolor(cmap(color_val))
+            bar.set_facecolor(cmap(c))
             bar.set_clip_on(False)
 
 
@@ -578,10 +560,10 @@ class PointPlot(ChartPlot, ColorbarPlot):
         ranges = self.compute_ranges(self.hmap, self.keys[-1], ranges)
         ranges = match_spec(points, ranges)
 
-        ndims = points.data.shape[1]
-        xs = points.data[:, 0] if len(points.data) else []
-        ys = points.data[:, 1] if len(points.data) else []
-        cs = points.data[:, self.color_index] if self.color_index < ndims else None
+        ndims = points.shape[1]
+        xs = points.dimension_values(0) if len(points.data) else []
+        ys = points.dimension_values(1) if len(points.data) else []
+        cs = points.dimension_values(self.color_index) if self.color_index < ndims else None
 
         style = self.style[self.cyclic_index]
         if self.size_index < ndims and self.scaling_factor > 1:
@@ -607,21 +589,21 @@ class PointPlot(ChartPlot, ColorbarPlot):
 
 
     def _compute_size(self, element, opts):
-        sizes = element.data[:, self.size_index]
+        sizes = element.dimension_values(self.size_index)
         ms = opts.pop('s') if 's' in opts else plt.rcParams['lines.markersize']
         return compute_sizes(sizes, self.size_fn, self.scaling_factor, ms)
 
 
     def update_handles(self, axis, element, key, ranges=None):
         paths = self.handles['artist']
-        paths.set_offsets(element.data[:, 0:2])
-        ndims = element.data.shape[1]
+        paths.set_offsets(element.array(dimensions=[0, 1]))
+        ndims = element.shape[1]
         dims = element.dimensions(label=True)
         if self.size_index < ndims:
             opts = self.style[self.cyclic_index]
             paths.set_sizes(self._compute_size(element, opts))
         if self.color_index < ndims:
-            cs = element.data[:, self.color_index]
+            cs = element.dimension_values(self.color_index)
             val_dim = dims[self.color_index]
             paths.set_clim(ranges[val_dim])
             paths.set_array(cs)
@@ -648,7 +630,7 @@ class VectorFieldPlot(ElementPlot):
     color_dim = param.ObjectSelector(default=None,
                                      objects=['angle', 'magnitude', None], doc="""
        Which of the polar vector components is mapped to the color
-       dimension (if any)""")
+       dimension (if any), valid values are 'angle' and 'magnitude'.""")
 
     arrow_heads = param.Boolean(default=True, doc="""
        Whether or not to draw arrow heads. If arrowheads are enabled,
@@ -680,10 +662,10 @@ class VectorFieldPlot(ElementPlot):
 
 
     def _get_info(self, vfield, input_scale, ranges):
-        xs = vfield.data[:, 0] if len(vfield.data) else []
-        ys = vfield.data[:, 1] if len(vfield.data) else []
-        radians = vfield.data[:, 2] if len(vfield.data) else []
-        magnitudes = vfield.data[:, 3] if vfield.data.shape[1]>=4 else np.array([1.0] * len(xs))
+        xs = vfield.dimension_values(0) if len(vfield.data) else []
+        ys = vfield.dimension_values(1) if len(vfield.data) else []
+        radians = vfield.dimension_values(2) if len(vfield.data) else []
+        magnitudes = vfield.dimension_values(3) if vfield.data.shape[1]>=4 else np.array([1.0] * len(xs))
         colors = magnitudes if self.color_dim == 'magnitude' else radians
 
         if vfield.data.shape[1] >= 4:
@@ -722,7 +704,7 @@ class VectorFieldPlot(ElementPlot):
         ranges = match_spec(vfield, ranges)
         xs, ys, angles, lens, colors, scale = self._get_info(vfield, input_scale, ranges)
 
-        args = (xs, ys, lens,  [0.0] * len(vfield.data))
+        args = (xs, ys, lens,  [0.0] * len(vfield))
         args = args + (colors,) if colorized else args
 
         if not self.arrow_heads:
@@ -954,11 +936,12 @@ class BarPlot(LegendPlot):
                             label_key[idx] = stk
                             style_key[idx] = stk_name
                         val_key[si] = stk_name
-                    val = element.get(tuple(val_key), (np.NaN,))
+                    vals = element.sample([tuple(val_key)]).dimension_values(element.vdims[0].name)
+                    val = float(vals[0]) if len(vals) else np.NaN
                     label = ', '.join(label_key)
                     style = dict(style_opts, label='' if label in labels else label,
                                  **dict(zip(sopts, color_groups[tuple(style_key)])))
-                    bar = axis.bar([xpos], val, width=width, bottom=prev,
+                    bar = axis.bar([xpos], [val], width=width, bottom=prev,
                                    **style)
 
                     # Update variables

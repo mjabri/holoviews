@@ -30,6 +30,9 @@ class RasterPlot(ColorbarPlot):
     show_values = param.Boolean(default=False, doc="""
         Whether to annotate each pixel with its value.""")
 
+    symmetric = param.Boolean(default=False, doc="""
+        Whether to make the colormap symmetric around zero.""")
+
     style_opts = ['alpha', 'cmap', 'interpolation', 'visible',
                   'filterrad', 'clims', 'norm']
 
@@ -61,11 +64,10 @@ class RasterPlot(ColorbarPlot):
         xticks, yticks = self._compute_ticks(element, ranges)
 
         opts = self.style[self.cyclic_index]
-        data = element.data
-        clims = opts.pop('clims', None)
         if element.depth != 1:
             opts.pop('cmap', None)
 
+        data = element.data
         if isinstance(element, Image):
             l, b, r, t = element.bounds.lbrt()
         else:
@@ -83,12 +85,9 @@ class RasterPlot(ColorbarPlot):
             cmap.set_bad('w', 1.)
             opts['cmap'] = cmap
 
-        im = axis.imshow(data, extent=[l, r, b, t], zorder=self.zorder, **opts)
-        if clims is None:
-            val_dim = [d.name for d in element.vdims][0]
-            clims = ranges.get(val_dim)
-        if 'norm' not in opts:
-            im.set_clim(clims)
+        clim, norm, opts = self._norm_kwargs(element, ranges, opts)
+        im = axis.imshow(data, extent=[l, r, b, t], zorder=self.zorder,
+                         clim=clim, norm=norm, **opts)
         self.handles['artist'] = im
 
         if isinstance(element, HeatMap):
@@ -105,7 +104,8 @@ class RasterPlot(ColorbarPlot):
     def _compute_ticks(self, element, ranges):
         if isinstance(element, HeatMap):
             xdim, ydim = element.kdims
-            dim1_keys, dim2_keys = element.dense_keys()
+            dim1_keys, dim2_keys = [element.dimension_values(i, True)
+                                    for i in range(2)]
             num_x, num_y = len(dim1_keys), len(dim2_keys)
             x0, y0, x1, y1 = element.extents
             xstep, ystep = ((x1-x0)/num_x, (y1-y0)/num_y)
@@ -121,23 +121,16 @@ class RasterPlot(ColorbarPlot):
     def _annotate_values(self, element):
         axis = self.handles['axis']
         val_dim = element.vdims[0]
-        dim1_keys, dim2_keys = element.dense_keys()
-        num_x, num_y = len(dim1_keys), len(dim2_keys)
+        d1keys, d2keys, vals = [element.dimension_values(i) for i in range(3)]
+        d1uniq, d2uniq = [element.dimension_values(i, True) for i in range(2)]
+        num_x, num_y = len(d1uniq), len(d2uniq)
         xstep, ystep = 1.0/num_x, 1.0/num_y
         xpos = np.linspace(xstep/2., 1.0-xstep/2., num_x)
         ypos = np.linspace(ystep/2., 1.0-ystep/2., num_y)
-        coords = product(dim1_keys, dim2_keys)
         plot_coords = product(xpos, ypos)
-        for plot_coord, coord in zip(plot_coords, coords):
-            if isinstance(element, HeatMap):
-                val = element._data.get(coord, np.NaN)
-                val = val[0] if isinstance(val, tuple) else val
-            else:
-                val = element[coord]
-            val = val_dim.type(val) if val_dim.type else val
-            val = val[0] if isinstance(val, tuple) else val
-            text = val_dim.pprint_value(val)
-            text = '' if val is np.nan else text
+        for plot_coord, v in zip(plot_coords, vals):
+            text = val_dim.pprint_value(v)
+            text = '' if v is np.nan else text
             if plot_coord not in self.handles['annotations']:
                 annotation = axis.annotate(text, xy=plot_coord,
                                            xycoords='axes fraction',
@@ -171,13 +164,20 @@ class RasterPlot(ColorbarPlot):
 
         val_dim = [d.name for d in element.vdims][0]
         opts = self.style[self.cyclic_index]
-        im.set_clim(opts.get('clims', ranges.get(val_dim)))
+
+        clim, norm, opts = self._norm_kwargs(element, ranges, opts)
+        im.set_clim(clim)
+        if norm:
+            im.norm = norm
         im.set_extent((l, r, b, t))
         xticks, yticks = self._compute_ticks(element, ranges)
         return {'xticks': xticks, 'yticks': yticks}
 
 
 class QuadMeshPlot(ColorbarPlot):
+
+    symmetric = param.Boolean(default=False, doc="""
+        Whether to make the colormap symmetric around zero.""")
 
     style_opts = ['alpha', 'cmap', 'clim', 'edgecolors', 'norm', 'shading',
                   'linestyles', 'linewidths', 'hatch', 'visible']
@@ -201,24 +201,27 @@ class QuadMeshPlot(ColorbarPlot):
         data = np.ma.array(element.data[2],
                            mask=np.logical_not(np.isfinite(element.data[2])))
         cmesh_data = list(element.data[:2]) + [data]
-        self.handles['artist'] = axis.pcolormesh(*cmesh_data, vmin=clims[0],
-                                                vmax=clims[1], zorder=self.zorder,
-                                                **opts)
+        clim, norm, opts = self._norm_kwargs(element, ranges, opts)
+        self.handles['artist'] = axis.pcolormesh(*cmesh_data, zorder=self.zorder,
+                                                 vmin=clim[0], vmax=clim[1], norm=norm,
+                                                 **opts)
         self.handles['locs'] = np.concatenate(element.data[:2])
 
 
     def update_handles(self, axis, element, key, ranges=None):
-        cmesh = self.handles['cmesh']
+        cmesh = self.handles['artist']
         opts = self.style[self.cyclic_index]
         locs = np.concatenate(element.data[:2])
         if (locs != self.handles['locs']).any():
             self._init_cmesh(axis, element, ranges)
         else:
-            data = np.ma.array(element.data[2],
-                           mask=np.logical_not(np.isfinite(element.data[2])))
+            mask_array = np.logical_not(np.isfinite(element.data[2]))
+            data = np.ma.array(element.data[2], mask=mask_array)
             cmesh.set_array(data.ravel())
-            clims = opts.get('clims', ranges.get(element.get_dimension(2).name))
-            cmesh.set_clim(clims)
+            clim, norm, opts = self._norm_kwargs(element, ranges, opts)
+            cmesh.set_clim(clim)
+            if norm:
+                cmesh.norm = norm
 
 
 class RasterGridPlot(GridPlot, OverlayPlot):

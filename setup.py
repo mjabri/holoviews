@@ -26,7 +26,7 @@ extras_require['all'] = (extras_require['recommended']
 
 setup_args.update(dict(
     name='holoviews',
-    version="1.3.2",
+    version="1.4.1a1",
     install_requires = install_requires,
     extras_require = extras_require,
     description='Composable, declarative data structures for building complex visualizations easily.',
@@ -50,7 +50,7 @@ setup_args.update(dict(
                 "holoviews.plotting.widgets"],
     package_data={'holoviews.ipython': ['*.html'],
                   'holoviews.plotting.mpl': ['*.mplstyle', '*.jinja', '*.js'],
-                  'holoviews.plotting.bokeh': ['*.js'],
+                  'holoviews.plotting.bokeh': ['*.js', '*.css'],
                   'holoviews.plotting.widgets': ['*.jinja', '*.js', '*.css']},
     classifiers = [
         "License :: OSI Approved :: BSD License",

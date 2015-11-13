@@ -126,11 +126,9 @@ class Scatter3DPlot(Plot3D, PointPlot):
         return self._finalize_axis(key, ranges=ranges)
 
     def update_handles(self, axis, points, key, ranges=None):
-        ndims = points.data.shape[1]
-        xs = points.data[:, 0] if len(points.data) else []
-        ys = points.data[:, 1] if len(points.data) else []
-        zs = points.data[:, 2] if len(points.data) else []
-        cs = points.data[:, self.color_index] if self.color_index < ndims else None
+        ndims = points.shape[1]
+        xs, ys, zs = (points.dimension_values(i) for i in range(3))
+        cs = points.dimension_values(self.color_index) if self.color_index < ndims else None
 
         style = self.style[self.cyclic_index]
         if self.size_index < ndims and self.scaling_factor > 1:
@@ -165,7 +163,8 @@ class SurfacePlot(Plot3D):
     plot_type = param.ObjectSelector(default='surface',
                                      objects=['surface', 'wireframe',
                                               'contour'], doc="""
-        Specifies the type of visualization for the Surface object.""")
+        Specifies the type of visualization for the Surface object.
+        Valid values are 'surface', 'wireframe' and 'contour'.""")
 
     style_opts = ['antialiased', 'cmap', 'color', 'shade',
                   'linewidth', 'facecolors', 'rstride', 'cstride']
@@ -187,7 +186,7 @@ class SurfacePlot(Plot3D):
         l, b, zmin, r, t, zmax = self.get_extents(element, ranges)
         r, c = np.mgrid[l:r:(r-l)/float(rn), b:t:(t-b)/float(cn)]
 
-        style_opts = self.lookup_options(element, 'style')[self.cyclic_index]
+        style_opts = self.style[self.cyclic_index]
 
         if self.plot_type == "wireframe":
             self.handles['artist'] = self.handles['axis'].plot_wireframe(r, c, mat, **style_opts)
@@ -198,3 +197,35 @@ class SurfacePlot(Plot3D):
         elif self.plot_type == "contour":
             self.handles['artist'] = self.handles['axis'].contour3D(r, c, mat, **style_opts)
 
+
+
+class TrisurfacePlot(Plot3D):
+    """
+    Plots a trisurface given a Trisurface element, containing
+    X, Y and Z coordinates.
+    """
+
+    colorbar = param.Boolean(default=False, doc="""
+        Whether to add a colorbar to the plot.""")
+
+    style_opts = ['cmap', 'color', 'shade', 'linewidth', 'edgecolor']
+
+    def initialize_plot(self, ranges=None):
+        element = self.hmap.last
+        key = self.keys[-1]
+
+        ranges = self.compute_ranges(self.hmap, self.keys[-1], ranges)
+        ranges = match_spec(element, ranges)
+
+        self.update_handles(self.handles['axis'], element, key, ranges)
+        return self._finalize_axis(key, ranges=ranges)
+
+
+    def update_handles(self, axis, element, key, ranges=None):
+        style_opts = self.style[self.cyclic_index]
+        dims = element.dimensions(label=True)
+        vrange = ranges[dims[2]]
+        x, y, z = [element.dimension_values(d) for d in dims]
+        artist = axis.plot_trisurf(x, y, z, vmax=vrange[1],
+                                   vmin=vrange[0], **style_opts)
+        self.handles['artist'] = artist

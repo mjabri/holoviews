@@ -8,10 +8,11 @@ except:
 
 
 import os
-from matplotlib import ticker
+from distutils.version import LooseVersion
+
 from matplotlib import rc_params_from_file
 
-from ...core import Layout, NdOverlay, Collator
+from ...core import Layout, NdOverlay, Collator, GridMatrix
 from ...core.options import Cycle, Palette, Options
 from ...element import * # pyflakes:ignore (API import)
 from ..plot import PlotSelector
@@ -27,6 +28,8 @@ from . import seaborn # pyflakes:ignore (API import)
 
 from .renderer import MPLRenderer
 
+
+mpl_ge_150 = LooseVersion(mpl.__version__) >= '1.5.0'
 
 
 def set_style(key):
@@ -50,17 +53,29 @@ def set_style(key):
 
         plt.rcParams.update(new_style)
 
-styles = {'default': './default.mplstyle'}
-set_style('default')
 
+styles = {'default': './default.mplstyle',
+          'default>1.5': './default1.5.mplstyle'}
 
-# Upgrade Dimension formatters to matplotlib
-wrapped_formatters = {k: fn if isinstance(fn, ticker.Formatter) else ticker.FuncFormatter(fn)
-                      for k, fn in Dimension.type_formatters.items()}
-Dimension.type_formatters.update(wrapped_formatters)
+if mpl_ge_150:
+    set_style('default>1.5')
+else:
+    set_style('default')
 
 # Define matplotlib based style cycles and Palettes
-Cycle.default_cycles.update({'default_colors': plt.rcParams['axes.color_cycle']})
+def get_color_cycle():
+    if mpl_ge_150:
+        cyl = mpl.rcParams['axes.prop_cycle']
+        # matplotlib 1.5 verifies that axes.prop_cycle *is* a cycler
+        # but no garuantee that there's a `color` key.
+        # so users could have a custom rcParmas w/ no color...
+        try:
+            return [x['color'] for x in cyl]
+        except KeyError:
+            pass  # just return axes.color style below
+    return mpl.rcParams['axes.color_cycle']
+
+Cycle.default_cycles.update({'default_colors': get_color_cycle()})
 Palette.colormaps.update({cm: plt.get_cmap(cm) for cm in plt.cm.datad})
 
 style_aliases = {'edgecolor': ['ec', 'ecolor'], 'facecolor': ['fc'],
@@ -96,6 +111,7 @@ Store.register({Curve: CurvePlot,
 
                 # General plots
                 GridSpace: GridPlot,
+                GridMatrix: GridPlot,
                 NdLayout: LayoutPlot,
                 Layout: LayoutPlot,
                 AdjointLayout: AdjointLayoutPlot,
@@ -106,11 +122,14 @@ Store.register({Curve: CurvePlot,
 
                 # Chart 3D
                 Surface: SurfacePlot,
+                Trisurface: TrisurfacePlot,
                 Scatter3D: Scatter3DPlot,
 
                 # Tabular plots
                 ItemTable: TablePlot,
                 Table: TablePlot,
+                NdElement: TablePlot,
+                Columns: TablePlot,
                 Collator: TablePlot,
 
                 # Raster plots
@@ -153,7 +172,7 @@ options.Spread = Options('style', facecolor=Cycle(), alpha=0.6, edgecolor='k', l
 options.Bars = Options('style', ec='k', color=Cycle())
 options.Histogram = Options('style', ec='k', facecolor=Cycle())
 options.Points = Options('style', color=Cycle(), marker='o')
-options.Scatter3D = Options('style', color=Cycle(), marker='o')
+options.Scatter3D = Options('style', facecolors=Cycle(), marker='o')
 options.Scatter3D = Options('plot', fig_size=150)
 options.Surface = Options('plot', fig_size=150)
 # Rasters
@@ -165,6 +184,9 @@ options.HeatMap = Options('plot', show_values=True, xticks=20, yticks=20)
 options.RGB = Options('style', interpolation='nearest')
 # Composites
 options.Layout = Options('plot', sublabel_format='{Alpha}')
+options.GridMatrix = Options('plot', fig_size=160, shared_xaxis=True,
+                             shared_yaxis=True, xaxis=None, yaxis=None)
+
 # Annotations
 options.VLine = Options('style', color=Cycle())
 options.HLine = Options('style', color=Cycle())

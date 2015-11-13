@@ -1,36 +1,49 @@
-from ...core import Store, Overlay, NdOverlay, Layout, AdjointLayout, GridSpace
-from ...element import Curve, Points, Scatter, Image, Raster, Path, RGB, Histogram, Spread, HeatMap
-from ...element import Contours, Path, Box, Bounds, Ellipse, Polygons, ErrorBars, Text, HLine, VLine
-from ...interface.seaborn import Bivariate, TimeSeries, Distribution
+from ...core import (Store, Overlay, NdOverlay, Layout, AdjointLayout,
+                     GridSpace, NdElement, Columns, GridMatrix)
+from ...element import (Curve, Points, Scatter, Image, Raster, Path,
+                        RGB, Histogram, Spread, HeatMap, Contours,
+                        Path, Box, Bounds, Ellipse, Polygons,
+                        ErrorBars, Text, HLine, VLine, Spline,
+                        Table, ItemTable, Surface, Scatter3D, Trisurface)
 from ...core.options import Options, Cycle, OptionTree
+from ...interface import DFrame
 from ..plot import PlotSelector
+from ..mpl import SurfacePlot, Scatter3DPlot, TrisurfacePlot
 
-from .annotation import TextPlot, LineAnnotationPlot
-from .element import OverlayPlot, BokehMPLWrapper
-from .chart import PointPlot, CurvePlot, SpreadPlot, ErrorPlot, HistogramPlot
+from .annotation import TextPlot, LineAnnotationPlot, SplinePlot
+from .element import OverlayPlot, BokehMPLWrapper, BokehMPLRawWrapper
+from .chart import (PointPlot, CurvePlot, SpreadPlot, ErrorPlot, HistogramPlot,
+                    AdjointHistogramPlot)
 from .path import PathPlot, PolygonPlot
 from .plot import GridPlot, LayoutPlot, AdjointLayoutPlot
 from .raster import RasterPlot, RGBPlot, HeatmapPlot
 from .renderer import BokehRenderer
+from .tabular import TablePlot
 
 Store.renderers['bokeh'] = BokehRenderer
 
 Store.register({Overlay: OverlayPlot,
                 NdOverlay: OverlayPlot,
+                GridSpace: GridPlot,
+                GridMatrix: GridPlot,
+                AdjointLayout: AdjointLayoutPlot,
+                Layout: LayoutPlot,
+
+                # Charts
                 Curve: CurvePlot,
                 Points: PointPlot,
                 Scatter: PointPlot,
+                ErrorBars: ErrorPlot,
                 Spread: SpreadPlot,
-                HLine: LineAnnotationPlot,
-                VLine: LineAnnotationPlot,
-                GridSpace: GridPlot,
+
+                # Rasters
                 Image: RasterPlot,
                 RGB: RGBPlot,
                 Raster: RasterPlot,
                 HeatMap: HeatmapPlot,
                 Histogram: HistogramPlot,
-                AdjointLayout: AdjointLayoutPlot,
-                Layout: LayoutPlot,
+
+                # Paths
                 Path: PathPlot,
                 Contours: PathPlot,
                 Path:     PathPlot,
@@ -38,12 +51,39 @@ Store.register({Overlay: OverlayPlot,
                 Bounds:   PathPlot,
                 Ellipse:  PathPlot,
                 Polygons: PolygonPlot,
-                ErrorBars: ErrorPlot,
-                Text: TextPlot}, 'bokeh')
+
+                # Annotations
+                HLine: LineAnnotationPlot,
+                VLine: LineAnnotationPlot,
+                Text: TextPlot,
+                Spline: SplinePlot,
+
+                # Tabular
+                Table: TablePlot,
+                ItemTable: TablePlot,
+                DFrame: TablePlot,
+                NdElement: TablePlot,
+                Columns: TablePlot,
+
+                # Wrapped mpl 3d plots
+                Surface: PlotSelector(lambda x: 'bokeh',
+                                      [('mpl', SurfacePlot),
+                                       ('bokeh', BokehMPLRawWrapper)], True),
+                Scatter3D: PlotSelector(lambda x: 'bokeh',
+                                        [('mpl', Scatter3DPlot),
+                                         ('bokeh', BokehMPLRawWrapper)], True),
+                Trisurface: PlotSelector(lambda x: 'bokeh',
+                                         [('mpl', TrisurfacePlot),
+                                          ('bokeh', BokehMPLRawWrapper)], True)},
+               'bokeh')
+
+
+AdjointLayoutPlot.registry[Histogram] = AdjointHistogramPlot
 
 
 try:
     from ..mpl.seaborn import TimeSeriesPlot, BivariatePlot, DistributionPlot
+    from ...interface.seaborn import Bivariate, TimeSeries, Distribution
     Store.register({Distribution: PlotSelector(lambda x: 'bokeh',
                                                [('mpl', DistributionPlot),
                                                 ('bokeh', BokehMPLWrapper)],
